@@ -1,0 +1,87 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Diehl Homeschool Planner</title>
+<style>
+:root{--bg:#fdf8f1;--card:#fff;--ink:#3a3330;--muted:#8a7f78;--accent:#c8763a;--L:#2f7dbd;--G:#3f9a5a;--S:#d0802a;--A:#8a5cb8}
+*{box-sizing:border-box}button,input,select,label,textarea{touch-action:manipulation;-webkit-tap-highlight-color:transparent}header{pointer-events:auto}body{margin:0;background:var(--bg);color:var(--ink);font-family:Verdana,"Segoe UI",system-ui,sans-serif;font-size:18px;line-height:1.6;letter-spacing:.03em;word-spacing:.08em}
+header{background:var(--accent);color:#fff;padding:12px 16px;position:sticky;top:0;z-index:5}
+h1{font-size:1.2em;margin:0}.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+button,select,input,textarea{font:inherit;border-radius:10px;border:1px solid #d9cfc6;padding:8px 12px;background:#fff;color:var(--ink)}
+button{cursor:pointer}button.pri{background:var(--accent);color:#fff;border:none}
+main{max-width:760px;margin:auto;padding:12px}
+.days{display:flex;gap:6px;overflow-x:auto;margin:10px 0}.days button.on{background:var(--ink);color:#fff}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}.tabs button{border:2px solid var(--c);color:var(--c);font-weight:bold}.tabs button.on{background:var(--c);color:#fff}
+.card{background:var(--card);border-radius:14px;padding:14px;margin:10px 0;box-shadow:0 1px 4px #0001;border-left:8px solid #e8ddd2}
+.card.now{border-left-color:var(--accent);box-shadow:0 0 0 3px var(--accent)}
+.tag{font-size:.75em;background:var(--accent);color:#fff;border-radius:8px;padding:2px 8px;margin-left:6px}
+.task{display:flex;gap:10px;align-items:center;padding:8px 0;border-top:1px dashed #eee}
+.task input[type=checkbox]{width:28px;height:28px;flex:none;accent-color:var(--c)}
+.task .who{font-weight:bold;color:var(--c);min-width:5.5em}.task.done .txt{text-decoration:line-through;color:var(--muted)}
+.task .txt{flex:1}.sm{font-size:.8em;padding:4px 8px}.muted{color:var(--muted)}
+textarea{width:100%;min-height:90px}.bar{height:16px;background:#eee;border-radius:8px;overflow:hidden}.bar i{display:block;height:100%;background:var(--c)}
+.edit{display:none}.editing .edit{display:inline-block}
+</style></head><body>
+<header><div class="row" style="justify-content:space-between"><h1>🏠 Diehl Homeschool</h1>
+<div class="row"><button class="sm" id="pw">◀</button><b>CC Cycle 3 · Week <span id="wk"></span></b><button class="sm" id="nw">▶</button></div></div></header>
+<main>
+<div class="days" id="days"></div>
+<div class="tabs" id="tabs"></div>
+<div class="row"><button id="edt" class="sm">✏️ Edit tasks/times</button><button id="today" class="sm">📍 Today</button></div>
+<div id="blocks"></div>
+<div class="card"><b>📝 Notes for this day</b><textarea id="notes" placeholder="How did today go?"></textarea></div>
+<div class="card"><b>📊 Week progress</b><div id="sum"></div></div>
+<div class="row" style="margin:20px 0"><button id="reset">🔄 Reset this week's checkmarks & notes</button><button id="def">Restore default schedule</button></div>
+</main>
+<script>
+const KIDS={L:{n:"Landon",c:"var(--L)"},G:{n:"Greyson",c:"var(--G)"},S:{n:"Sawyer",c:"var(--S)"},A:{n:"All",c:"var(--A)"}};
+const DAYS=["Mon","Tue","Wed","Thu","Fri"];
+let id=0;const t=(k,x)=>({id:"t"+(id++),k,x});
+function defaults(){const reg=()=>[
+{name:"Together: CC Memory Work",s:"09:00",e:"09:45",tasks:[t("A","Memory work aloud – songs & motions"),t("A","Timeline cards"),t("L","Recite new memory work"),t("G","Recite new memory work"),t("S","Join memory work as able")]},
+{name:"Block 1",s:"09:45",e:"10:30",tasks:[t("L","1:1 with Mom/Dad – reading"),t("L","1:1 – spelling"),t("G","Miacademy lesson"),t("S","Worksheet / play with baby")]},
+{name:"Block 2",s:"10:30",e:"11:15",tasks:[t("G","1:1 – phonics"),t("G","1:1 – math"),t("L","Miacademy (text-to-speech on)"),t("S","Quiet play")]},
+{name:"Block 3",s:"11:15",e:"11:35",tasks:[t("S","1:1 – worksheet"),t("S","Foundations review"),t("L","Outdoor break"),t("G","Outdoor break")]},
+{name:"Afternoon",s:"13:00",e:"17:00",tasks:[t("A","Read-aloud / audiobook (history)"),t("L","Baseball"),t("G","Baseball"),t("S","Baseball")]}];
+const d={Mon:reg(),Tue:reg(),Wed:reg(),Thu:[{name:"Community Day",s:"08:00",e:"15:00",tasks:[t("A","Pack CC bag"),t("A","Attend community day"),t("A","Review what we learned")]}],Fri:reg()};
+d.Fri.splice(4,0,{name:"Friday Wrap-up",s:"11:35",e:"12:15",tasks:[t("A","Weekly memory work review"),t("A","Catch up on missed work"),t("A","Preview next week")]});return d}
+const MEM={};let store=null;try{store=window.localStorage;const z="__t";store.setItem(z,"1");store.removeItem(z)}catch(e){store=null}
+const LS=k=>{try{const v=store?store.getItem(k):MEM[k];return v?JSON.parse(v):null}catch(e){return null}},SV=(k,v)=>{const j=JSON.stringify(v);MEM[k]=j;try{store&&store.setItem(k,j)}catch(e){}};
+let sched=LS("hs_sched");if(!sched){sched=defaults();SV("hs_sched",sched)}else id=Date.now();
+let st=LS("hs_state")||{week:6,checks:{},notes:{}};
+const td=new Date().getDay();let day=DAYS[td>=1&&td<=5?td-1:0],kid="A",editing=false;
+const save=()=>{SV("hs_state",st);SV("hs_sched",sched)};const key=()=>st.week+"_"+day;
+const mins=s=>{const[a,b]=s.split(":");return +a*60+ +b};
+const fmt=s=>{let[h,m]=s.split(":");h=+h;return(h%12||12)+":"+m+(h<12?"am":"pm")};
+const esc=s=>s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function render(){
+document.getElementById("wk").textContent=st.week;
+document.getElementById("days").innerHTML=DAYS.map(d=>`<button class="${d==day?"on":""}" data-act="day" data-v="${d}">${d}${d=="Thu"?" ⭐":""}</button>`).join("");
+document.getElementById("tabs").innerHTML=Object.entries(KIDS).map(([k,v])=>`<button style="--c:${v.c}" class="${k==kid?"on":""}" data-act="kid" data-v="${k}">${k=="A"?"Everyone":v.n}</button>`).join("");
+const now=new Date(),nm=now.getHours()*60+now.getMinutes(),isToday=DAYS[now.getDay()-1]==day;
+const ch=st.checks[key()]||{};
+document.getElementById("blocks").className=editing?"editing":"";
+document.getElementById("blocks").innerHTML=sched[day].map((b,bi)=>{
+const isNow=isToday&&nm>=mins(b.s)&&nm<mins(b.e);
+const tasks=b.tasks.filter(x=>kid=="A"||x.k==kid||x.k=="A");if(!tasks.length&&!editing)return"";
+return`<div class="card ${isNow?"now":""}"><div class="row" style="justify-content:space-between"><b>${esc(b.name)}${isNow?'<span class="tag">NOW</span>':""}</b><span class="muted">${fmt(b.s)}–${fmt(b.e)}</span></div>
+<div class="edit row"><input type="time" value="${b.s}" data-act="ts" data-b="${bi}"><input type="time" value="${b.e}" data-act="te" data-b="${bi}"><button class="sm" data-act="add" data-b="${bi}">+ Task</button></div>
+${tasks.map(x=>{const K=KIDS[x.k];return`<div class="task ${ch[x.id]?"done":""}" style="--c:${K.c}"><input type="checkbox" ${ch[x.id]?"checked":""} data-act="tog" data-v="${x.id}"><span class="who">${K.n}</span><span class="txt">${esc(x.x)}</span><button class="edit sm" data-act="ed" data-b="${bi}" data-v="${x.id}">✏️</button><button class="edit sm" data-act="del" data-b="${bi}" data-v="${x.id}">🗑</button></div>`}).join("")}</div>`}).join("");
+const n=document.getElementById("notes");if(document.activeElement!==n)n.value=st.notes[key()]||"";
+// summary
+document.getElementById("sum").innerHTML=["L","G","S"].map(k=>{let tot=0,dn=0;DAYS.forEach(d=>{const c=st.checks[st.week+"_"+d]||{};sched[d].forEach(b=>b.tasks.forEach(x=>{if(x.k==k||x.k=="A"){tot++;if(c[x.id])dn++}}))});const p=tot?Math.round(dn/tot*100):0;
+return`<div style="--c:${KIDS[k].c};margin:8px 0"><b style="color:var(--c)">${KIDS[k].n}</b> ${dn}/${tot} (${p}%)<div class="bar"><i style="width:${p}%"></i></div></div>`}).join("");}
+function tog(i){const c=st.checks[key()]=st.checks[key()]||{};c[i]=!c[i];save();render()}
+function addT(bi){const x=prompt("Task:");if(!x)return;let k=prompt("Who? L=Landon, G=Greyson, S=Sawyer, A=All",kid);k=(k||"A").toUpperCase()[0];if(!KIDS[k])k="A";sched[day][bi].tasks.push({id:"t"+Date.now(),k,x});save();render()}
+function edT(bi,i){const x=sched[day][bi].tasks.find(z=>z.id==i);const v=prompt("Edit task:",x.x);if(v){x.x=v;save();render()}}
+function delT(bi,i){if(confirm("Delete this task?")){sched[day][bi].tasks=sched[day][bi].tasks.filter(z=>z.id!=i);save();render()}}
+document.getElementById("notes").oninput=e=>{st.notes[key()]=e.target.value;save()};
+document.getElementById("pw").onclick=()=>{if(st.week>1){st.week--;save();render()}};
+document.getElementById("nw").onclick=()=>{st.week++;save();render()};
+document.getElementById("edt").onclick=()=>{editing=!editing;render()};
+document.getElementById("today").onclick=()=>{const d=new Date().getDay();if(d>=1&&d<=5)day=DAYS[d-1];render();const nw=document.querySelector(".now");nw&&nw.scrollIntoView({behavior:"smooth"})};
+document.getElementById("reset").onclick=()=>{if(confirm("Clear week "+st.week+" checkmarks and notes?")){DAYS.forEach(d=>{delete st.checks[st.week+"_"+d];delete st.notes[st.week+"_"+d]});save();render()}};
+document.getElementById("def").onclick=()=>{if(confirm("Restore default schedule? Custom tasks/times will be lost.")){id=0;sched=defaults();save();render()}};
+document.addEventListener("click",e=>{const el=e.target.closest("[data-act]");if(!el)return;const a=el.dataset.act,v=el.dataset.v,b=+el.dataset.b;
+if(a=="day"){day=v;render()}else if(a=="kid"){kid=v;render()}else if(a=="tog")tog(v);else if(a=="add")addT(b);else if(a=="ed")edT(b,v);else if(a=="del")delT(b,v)});
+document.addEventListener("change",e=>{const el=e.target,a=el.dataset&&el.dataset.act;if(a=="ts"||a=="te"){sched[day][+el.dataset.b][a=="ts"?"s":"e"]=el.value;save();render()}});
+render();setInterval(render,60000);
+</script></body></html>
